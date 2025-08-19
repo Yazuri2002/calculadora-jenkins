@@ -2,8 +2,8 @@ pipeline {
   agent any
 
   tools {
-    jdk   'jdk21'        // ← nombre exacto según Tools
-    maven 'maven 3.9'    // ← nombre exacto según Tools
+    jdk   'jdk21'
+    maven 'maven 3.9'
   }
 
   options { timestamps() }
@@ -11,23 +11,28 @@ pipeline {
   stages {
     stage('Build & Test') {
       steps {
-        script {
-          // Detecta dónde está el pom.xml
-          def pomPath = fileExists('calculadora/pom.xml') ? 'calculadora/pom.xml' : 'pom.xml'
-          if (isUnix()) {
-            sh "mvn -B -V -e -f '${pomPath}' clean test"
-          } else {
-            bat "mvn -B -V -e -f \"${pomPath}\" clean test"
+        dir('calculadora') {
+          script {
+            if (isUnix()) {
+              sh 'mvn -B -V -e clean test'
+            } else {
+              bat 'mvn -B -V -e clean test'
+            }
           }
         }
       }
-    }
-  }
-
-  post {
-    always {
-      junit '/target/surefire-reports/*.xml'
-      archiveArtifacts artifacts: '/target/surefire-reports/*.xml', allowEmptyArchive: true
+      post {
+        always {
+          // Publica y archiva los reportes desde la carpeta del proyecto
+          dir('calculadora') {
+            junit testResults: 'target/surefire-reports/TEST-*.xml',
+                  keepLongStdio: true,
+                  allowEmptyResults: false
+            archiveArtifacts artifacts: 'target/surefire-reports/',
+                              allowEmptyArchive: true
+          }
+        }
+      }
     }
   }
 }
