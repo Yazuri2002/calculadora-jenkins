@@ -1,26 +1,43 @@
+pipeline {
+  agent any
 
-package com.mycompany.calculadora;
+  // Ajusta los nombres si en Tools los tienes distintos,
+  // o elimina por completo este bloque si prefieres usar el PATH del agente.
+  tools {
+    jdk 'jdk-21'
+    maven 'maven'
+  }
 
-import org.junit.Before;
-import org.junit.Test;
-import static org.junit.Assert.*;
+  options { timestamps() }
 
-public class CalculadoraTest {
-    private Calculadora calc;
-
-    @Before
-    public void setUp() { calc = new Calculadora(); }
-
-    @Test public void testSumar() { assertEquals(5, calc.sumar(2, 3)); }
-    @Test public void testRestar() { assertEquals(6, calc.restar(10, 4)); }
-    @Test public void testMultiplicar() { assertEquals(42, calc.multiplicar(6, 7)); }
-    @Test public void testDividir() { assertEquals(2.5, calc.dividir(10, 4), 1e-4); }
-    @Test(expected = ArithmeticException.class)
-    public void testDividirPorCero() { calc.dividir(10, 0); }
-
-    @Test public void testPromedioEHistorial() {
-        calc.sumar(2,3); calc.restar(10,4); calc.multiplicar(6,7); calc.dividir(10,4);
-        assertEquals(4, calc.obtenerHistorial().size());
-        assertEquals(13.875, calc.promedioHistorial(), 1e-4);
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm   // en Pipeline from SCM es redundante pero inofensivo
+      }
     }
+
+    stage('Build & Test') {
+      steps {
+        script {
+          // Detecta dónde está el POM: en la raíz o dentro de "calculadora/"
+          def pomPath = fileExists('calculadora/pom.xml') ? 'calculadora/pom.xml' : 'pom.xml'
+
+          if (isUnix()) {
+            sh "mvn -B -V -e -f '${pomPath}' clean test"
+          } else {
+            bat "mvn -B -V -e -f \"${pomPath}\" clean test"
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      // Publica resultados de pruebas y archiva los XML
+      junit '/target/surefire-reports/*.xml'
+      archiveArtifacts artifacts: '/target/surefire-reports/*.xml', allowEmptyArchive: true
+    }
+  }
 }
